@@ -1,0 +1,39 @@
+---
+title: "Data_Prep"
+author: "Fleur Petit"
+date: "9 February 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+```
+
+## Word-pair preperation
+
+```{r}
+s <- read_csv("similar_sample.csv") %>%
+  mutate(similarity = "similar")
+d <- read_csv("dissimilar_sample.csv") %>%
+  mutate(similarity = "dissimilar")
+
+df <- s %>% bind_rows(d)
+
+set.seed(353)
+
+df <- df %>% mutate(sample = sample(c(rep(TRUE, 30), rep(FALSE, 70)))) %>% 
+  filter(sample == TRUE) %>%
+  unite(col = wordpairs, word1, word2, sep = " vs. ")
+
+write_csv(x = df, path = "word_pairs.csv")
+```
+
+## Distribution similarity rates
+
+```{r}
+
+ggplot(df, aes(similarity)) +
+  geom_bar()
+
+```

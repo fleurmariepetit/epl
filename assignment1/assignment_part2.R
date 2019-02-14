@@ -24,15 +24,14 @@ names(sim_analysis) <- c("mean")
 sim_analysis$sd <- apply(similar_data,2, sd) #Caluclate the sd of results
 total_sim <- c(mean(sim_analysis$mean), mean(sim_analysis$sd)) #Caluclate the average mean and sd of results
 
-
 dissim_analysis <- as.data.frame(apply(dissimilar_data,2, mean)) #Caluclate the mean of results
 names(dissim_analysis) <- c("mean")
 dissim_analysis$sd <- apply(dissimilar_data,2, sd) #Caluclate the sd of results
 total_dissim <- c(mean(dissim_analysis$mean), mean(dissim_analysis$sd)) #Caluclate the average mean and sd of results
 
 #Check whether participants correlate in responses
-cor(t(similar_data))
-cor(t(dissimilar_data))
+cor_sim_matrix <- as.data.frame(round(cor(t(similar_data)),3))
+cor_dissim_matrix <- as.data.frame(round(cor(t(dissimilar_data)),3))
 
 #Check whether group significantly differ
 cor.test(colMeans(similar_data), colMeans(dissimilar_data)) #low correlation
@@ -79,6 +78,7 @@ cor.test(respondent20, t(wsdata))
 #Does not correlate
 cor.test(respondent1, t(wsdata))
 
+#Write up follow-up study based on the results of your own gathered data
 #Does correlate with average participant
 cor.test(colMeans(class_data[,2:178]), t(wsdata))
 

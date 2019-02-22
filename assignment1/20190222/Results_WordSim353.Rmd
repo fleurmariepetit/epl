@@ -1,0 +1,329 @@
+---
+title: "Results WordSim353 Assignment 1"
+author: "Fleur Petit"
+date: "11 February 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('knitr')
+library('lme4')
+library('broom')
+```
+
+## Load the data
+
+```{r}
+
+df <- read_csv("results_csv.csv") %>%
+  filter(profession != "test") %>%
+  mutate(start_time = as.POSIXct(as.character(start_time), format = "%Y-%m-%d %H:%M:%S"),
+         end_time = as.POSIXct(as.character(end_time), format = "%Y-%m-%d %H:%M:%S"),
+         duration = end_time - start_time) %>%
+  select(-c(start_time, end_time)) %>%
+  rownames_to_column("id") %>%
+  gather(key = word_pair, value = relatedness, -c(id, duration, level, study_type, profession)) %>%
+  arrange(id)
+
+word_pairs <- read_csv("20190219_wordpairs.csv") %>%
+  mutate(word_pair = str_replace(wordpairs, " vs. ", "_")) %>%
+  rename(source = similarity) %>%
+  select(-wordpairs)
+
+df <- df %>%
+  full_join(word_pairs)
+
+``` 
+
+## Function to calculate the 95% confidence interval
+
+```{r}
+
+ci <- function(mean, sd, n){
+  error <- qnorm(0.975)*sd/sqrt(n)
+  lower <- mean-error
+  upper <- mean+error
+  return(tibble(lower = lower,upper = upper))
+}
+
+```
+
+## Mean, standard deviation, lower and upper 95% confidence interval, median
+
+```{r}
+
+n <- length(unique(df$id))
+
+description <-
+  df %>%
+  group_by(word_pair) %>%
+  mutate(mean = mean(relatedness),
+            sd = sd(relatedness),
+            lower = ci(mean, sd, n)[["lower"]],
+            upper = ci(mean, sd, n)[["upper"]],
+            median = median(relatedness)
+            )
+
+description %>% 
+  group_by(word_pair, mean, sd, lower, upper, median, source) %>% 
+  summarise %>%
+  arrange(source) %>%
+  kable() 
+
+df %>%
+  group_by(source) %>%
+  summarise(mean = mean(relatedness),
+          sd = sd(relatedness),
+          lower = ci(mean, sd, n)[["lower"]],
+          upper = ci(mean, sd, n)[["upper"]],
+          median = median(relatedness)
+          ) %>%
+  kable()
+  
+
+```
+The relatedness ratings are relatively similar for word pairs from the "similar" dataset and word pairs from the "dissimilar" dataset. This may indicate that word relatedness and word similarity are rated according to different standards.
+
+## Density plots of relatedness rateings per word pair with mean and 95% confidence interval
+
+```{r}
+
+ggplot(description, aes(relatedness)) +
+  geom_density() +
+  facet_wrap(~ word_pair) +
+  geom_vline(aes(xintercept = mean), colour = "red", linetype = "dashed") +
+  geom_vline(aes(xintercept = lower), linetype = "dashed") +
+  geom_vline(aes(xintercept = upper), linetype = "dashed") +
+  ggtitle("Density plots of relatedness ratings with mean and 95% confidence interval")
+  
+
+```
+
+## Pairs with a relatively large spread
+
+A sd > 2.5 has been chosen arbitrarily to indicate a relatively large spread.
+
+```{r}
+
+description %>%
+  group_by(word_pair, sd) %>%
+  summarise() %>%
+  filter(sd > 2.5) %>%
+  arrange(sd) %>%
+  kable()
+
+```
+
+## Relatedness rating frequencies per participant
+
+```{r}
+
+ggplot(df, aes(x = relatedness, colour = level)) +
+  geom_bar() +
+  facet_wrap(~id)
+
+```
+
+## Relatedness distribution per `study_type`
+
+```{r}
+
+ggplot(df, aes(x = relatedness)) +
+  geom_density() +
+  facet_wrap(~study_type)
+
+```
+
+## Per `level`
+
+```{r}
+
+ggplot(df, aes(x = relatedness)) +
+  geom_density() +
+  facet_wrap(~level)
+
+```
+
+## Duration denisty
+
+```{r}
+
+ggplot(df, aes(duration)) +
+  geom_density() +
+  geom_vline(aes(xintercept = duration, colour = study_type), linetype = "dashed") +
+  geom_text(aes(y = .3, label = id)) +
+  facet_wrap(~level, scales = "free")
+
+```
+
+## Distributions of participants among different groups
+
+```{r}
+df %>%
+  group_by(id, study_type, level) %>% 
+  summarise %>%
+  gather(key = grouping_var, value = level_type, -id) %>%
+  ggplot(aes(level_type)) +
+  geom_bar() +
+  facet_wrap(~grouping_var, scales = "free")
+
+```
+
+## Does a model that includes `study_type` explain the variance better than one that does not?
+
+We will use an `lmer` model from the `lme4` package, because we we are interested in the effects of `study_type`, and not the individual differences that we can not control for. The intercept of each individual (`id`) will be defined as a random effect. We will leave out the `NA`'s.
+
+Furthermore, `word_pair` will be defined as a random effect. At this moment we are mainly interested in whether `study_type` explains differences in relatedness in general. We don't want to look at the effect of `study_type` on the relatedness ratings of each `word_pair`.
+
+### The null-model
+
+The null-model only includes the intercept for each `word_pair` and the intercept of each individual as a random effects.
+
+```{r}
+
+df_naomit <- df %>% na.omit
+
+model0 <- lmer(relatedness ~ (1|word_pair) + (1|id), data = df_naomit, REML = F)
+
+```
+
+### The alternative model (includes `study_type`)
+
+In the table we can see that there is a relatively large difference between the ratings of people with a `gamma` background and those with an `alpha background`. `estimate` > `(Intercept)` gives us the relatedness intercept of relatedness of `people` with an `alpha` background. The `estimate` value at `study_typebeta` gives the difference with this intercept. The same holds for `study_typegamma`.
+
+```{r}
+
+model1 <- lmer(relatedness ~ study_type + (1|word_pair) + (1|id), data = df_naomit, REML = F)
+
+model1 %>%
+  tidy() %>%
+  rename("t-value" = statistic) %>%
+  select(-group) %>%
+  kable()
+
+```
+
+### Does the alternate model explain significantly more of the variance?
+
+The p-value indicates that a model that includes `study_type` explains significantly more of the variance.
+
+```{r}
+
+anova(model0, model1)
+
+```
+
+## How about `level` and `duration` and combinations of those and `study_type`?
+
+```{r}
+
+model2 <- lmer(relatedness ~ level + (1|word_pair) + (1|id), data = df_naomit, REML = F)
+model3 <- lmer(relatedness ~ duration + (1|word_pair) + (1|id), data = df_naomit, REML = F)
+```
+
+`level`
+
+```{r}
+anova(model0, model2)
+```
+
+`duration`
+
+```{r}
+
+anova(model0, model3)
+
+```
+
+Models including `level` xor `duration` do not explain significantly more of the variance than models that do not include these.  
+
+## Correlations
+
+### Between participants
+
+\tiny
+```{r}
+
+corr <- df %>%
+  arrange(id) %>%
+  select(id, relatedness, word_pair) %>%
+  spread(key = id, value = relatedness) %>%
+  select(-word_pair) %>%
+  cor() %>%
+  as.data.frame() %>%
+  rownames_to_column("id") %>%
+  gather(key = participant2, value = correlation, -id) %>%
+  # Add duration of test, study type and level of participant indicated by id:
+  left_join(df %>% select(id, study_type, level, duration)) %>%
+  rename(study_type1 = study_type,
+         level1 = level) %>%
+  left_join(by = c("participant2" = "id"), df %>% select(id, study_type, level, duration)) %>%
+  rename(study_type2 = study_type,
+         level2 = level) %>%
+  # Correlations between participant and himself are not interesting,
+  # so filter them out:
+  filter(id != participant2)
+
+```
+
+Are there any correlations between participants higher than .9? And lower tha .5?
+
+```{r}
+
+corr %>%
+  filter(correlation > .9) %>%
+  group_by(id, participant2, correlation, study_type1, level1, study_type2, level2) %>%
+  summarise() %>%
+  kable()
+
+corr %>%
+  filter(correlation < .5) %>%
+  group_by(id, participant2, correlation, study_type1, level1, study_type2, level2) %>%
+  summarise() %>%
+  kable()
+
+```
+
+
+
+
+# Hey comment hier: Is dit informatief? Volgens mij schieten we niet zo veel op met deze info:
+
+## Correlation of mean relatedness ratings between `study_type`
+
+```{r}
+
+df %>%
+  group_by(word_pair, study_type) %>%
+  summarise(mean = mean(relatedness)) %>%
+  spread(key = study_type, value = mean) %>%
+  ungroup() %>%
+  select(-word_pair) %>%
+  cor() %>%
+  kable()
+
+```
+
+## Correlation of mean relatedness ratings between `level`
+
+```{r}
+
+df %>%
+  group_by(word_pair, level) %>%
+  summarise(mean = mean(relatedness)) %>%
+  spread(key = level, value = mean) %>%
+  ungroup() %>%
+  select(-word_pair) %>%
+  cor() %>%
+  kable()
+
+```
+
+```{r}
+#Bekijk correlatie/scores tussen groepen alpha, beta en gamma?
+#Bekijk correlatie/scores tussen wo, hbo en work?
+#Bekijk algemeen wat de gemiddelde scores zijn?
+#Gebruik t.test om te kijken of er daadwerkelijk verschil is. 
+```

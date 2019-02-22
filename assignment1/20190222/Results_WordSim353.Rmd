@@ -84,6 +84,7 @@ df %>%
   
 
 ```
+
 The relatedness ratings are relatively similar for word pairs from the "similar" dataset and word pairs from the "dissimilar" dataset. This may indicate that word relatedness and word similarity are rated according to different standards.
 
 ## Density plots of relatedness rateings per word pair with mean and 95% confidence interval
@@ -243,7 +244,6 @@ Models including `level` xor `duration` do not explain significantly more of the
 
 ### Between participants
 
-\tiny
 ```{r}
 
 corr <- df %>%

@@ -1,12 +1,14 @@
 ---
 title: "Results WordSim353 Assignment 1"
-author: "Fleur Petit"
-date: "11 February 2019"
-output: pdf_document
+author: "Fleur Petit(), Jorrit Jorritsma(3845567), Debby Lam (4298772)"
+date: "22 February 2019"
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library('tidyverse')
 library('knitr')
 library('lme4')
@@ -306,24 +308,3 @@ df %>%
 
 ```
 
-## Correlation of mean relatedness ratings between `level`
-
-```{r}
-
-df %>%
-  group_by(word_pair, level) %>%
-  summarise(mean = mean(relatedness)) %>%
-  spread(key = level, value = mean) %>%
-  ungroup() %>%
-  select(-word_pair) %>%
-  cor() %>%
-  kable()
-
-```
-
-```{r}
-#Bekijk correlatie/scores tussen groepen alpha, beta en gamma?
-#Bekijk correlatie/scores tussen wo, hbo en work?
-#Bekijk algemeen wat de gemiddelde scores zijn?
-#Gebruik t.test om te kijken of er daadwerkelijk verschil is. 
-```
